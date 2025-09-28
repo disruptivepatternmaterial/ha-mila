@@ -34,7 +34,7 @@ class MilaUpdateCoordinator(DataUpdateCoordinator):
         """Set up the MilaUpdateCoordinator class."""
         self._hass = hass
         self._config_entry = config_entry        
-        self._api = MilaApi(MilaConfigEntryAuth(hass, config_entry, MilaOauthImplementation(hass, config_entry)))
+        self._api = None  # Initialize later in async_setup to avoid blocking call
 
         options = config_entry.options
         self._update_interval = options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
@@ -47,6 +47,12 @@ class MilaUpdateCoordinator(DataUpdateCoordinator):
     async def async_setup(self):
         """Setup a new coordinator"""
         _LOGGER.debug("Setting up coordinator")
+        
+        # Initialize API here to avoid blocking call in __init__
+        # Use asyncio.to_thread to move the blocking file read operation to a thread
+        self._api = await asyncio.to_thread(
+            lambda: MilaApi(MilaConfigEntryAuth(self._hass, self._config_entry, MilaOauthImplementation(self._hass, self._config_entry)))
+        )
 
         _LOGGER.debug("Getting first refresh")
         await self.async_config_entry_first_refresh()
