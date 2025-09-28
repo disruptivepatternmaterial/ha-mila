@@ -44,18 +44,26 @@ class MilaUpdateCoordinator(DataUpdateCoordinator):
 
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=timedelta(seconds=self._update_interval))
 
-    async def async_setup(self):
-        """Setup a new coordinator"""
-        _LOGGER.debug("Setting up coordinator")
+    async def async_initialize_api(self):
+        """Initialize the Mila API asynchronously to avoid blocking calls."""
+        _LOGGER.debug("Initializing Mila API asynchronously")
         
-        # Initialize API here to avoid blocking call in __init__
-        # Use asyncio.to_thread to move the blocking file read operation to a thread
         try:
             self._api = await asyncio.to_thread(
                 lambda: MilaApi(MilaConfigEntryAuth(self._hass, self._config_entry, MilaOauthImplementation(self._hass, self._config_entry)))
             )
+            _LOGGER.debug("Mila API initialized successfully")
         except Exception as e:
             _LOGGER.error(f"Failed to initialize Mila API: {e}")
+            raise
+
+    async def async_setup(self):
+        """Setup a new coordinator"""
+        _LOGGER.debug("Setting up coordinator")
+        
+        # API should already be initialized by async_initialize_api()
+        if self._api is None:
+            _LOGGER.error("Mila API not initialized")
             return False
 
         _LOGGER.debug("Getting first refresh")
