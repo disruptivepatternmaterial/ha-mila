@@ -34,7 +34,7 @@ class MilaUpdateCoordinator(DataUpdateCoordinator):
         """Set up the MilaUpdateCoordinator class."""
         self._hass = hass
         self._config_entry = config_entry        
-        self._api = None  # Initialize later in async_setup to avoid blocking call
+        self._api = None  # Will be initialized in async_setup
 
         options = config_entry.options
         self._update_interval = options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
@@ -50,9 +50,13 @@ class MilaUpdateCoordinator(DataUpdateCoordinator):
         
         # Initialize API here to avoid blocking call in __init__
         # Use asyncio.to_thread to move the blocking file read operation to a thread
-        self._api = await asyncio.to_thread(
-            lambda: MilaApi(MilaConfigEntryAuth(self._hass, self._config_entry, MilaOauthImplementation(self._hass, self._config_entry)))
-        )
+        try:
+            self._api = await asyncio.to_thread(
+                lambda: MilaApi(MilaConfigEntryAuth(self._hass, self._config_entry, MilaOauthImplementation(self._hass, self._config_entry)))
+            )
+        except Exception as e:
+            _LOGGER.error(f"Failed to initialize Mila API: {e}")
+            return False
 
         _LOGGER.debug("Getting first refresh")
         await self.async_config_entry_first_refresh()
@@ -88,6 +92,10 @@ class MilaUpdateCoordinator(DataUpdateCoordinator):
             #get the list of known appliances
             existing_appliances: list[str] = self.data.get(DATAKEY_APPLIANCE).keys() if self.data is not None else []
             
+            # Check if API is initialized
+            if self._api is None:
+                raise UpdateFailed("Mila API not initialized")
+
             #only need to get the account info the first time
             if not self._initialized:
                 async with async_timeout.timeout(self._timeout):
@@ -112,6 +120,10 @@ class MilaUpdateCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Error communicating with API: {err}")
 
     async def _build_devices(self, data: dict[str,Any]):
+        if self._api is None:
+            _LOGGER.error("Cannot build devices: Mila API not initialized")
+            return
+            
         for id in data[DATAKEY_APPLIANCE].keys():
             _LOGGER.info(f"Found Mila device with id={id}, setting up...")
             self.devices[id] = MilaAppliance(self, self._api, id)
