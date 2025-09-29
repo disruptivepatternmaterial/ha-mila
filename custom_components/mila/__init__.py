@@ -19,13 +19,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     coordinator = MilaUpdateCoordinator(hass, entry)
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    # Initialize API asynchronously to avoid blocking call
-    try:
-        await coordinator.async_initialize_api()
-    except Exception as e:
-        _LOGGER.error(f"Failed to initialize Mila API: {e}")
-        return False
-
     if not await coordinator.async_setup():
         return False
 

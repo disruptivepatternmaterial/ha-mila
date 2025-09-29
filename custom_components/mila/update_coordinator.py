@@ -61,9 +61,13 @@ class MilaUpdateCoordinator(DataUpdateCoordinator):
         """Setup a new coordinator"""
         _LOGGER.debug("Setting up coordinator")
         
-        # API should already be initialized by async_initialize_api()
-        if self._api is None:
-            _LOGGER.error("Mila API not initialized")
+        # Initialize API here to avoid blocking call in __init__
+        try:
+            self._api = await asyncio.to_thread(
+                lambda: MilaApi(MilaConfigEntryAuth(self._hass, self._config_entry, MilaOauthImplementation(self._hass, self._config_entry)))
+            )
+        except Exception as e:
+            _LOGGER.error(f"Failed to initialize Mila API: {e}")
             return False
 
         _LOGGER.debug("Getting first refresh")
